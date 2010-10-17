@@ -4,7 +4,6 @@ import java.util.Date
 import java.text.SimpleDateFormat
 import util.matching.Regex
 import java.io.BufferedReader
-import java.lang.reflect.Method
 
 trait Table[T <: Row] {
 
@@ -28,26 +27,11 @@ trait Table[T <: Row] {
 
 abstract class Row {
 
-	private val columns: Seq[(String, Column[_])] = {
-		getClass.getDeclaredFields.
-				filter(field => classOf[Column[_]].isAssignableFrom(field.getType)).
-				map(field => deMod(field.getName)).
-				map(fieldName => (fieldName, getClass.getMethod(fieldName).invoke(this).asInstanceOf[Column[_]])).
-				toSeq
-	}
-
-//	private val columnAccessors: Seq[(String, Method)] =
-//		getClass.getDeclaredFields.
-//				filter(field => classOf[Column[_]].isAssignableFrom(field.getType)).
-//				map(field => (deMod(field.getName), getClass.getMethod(deMod(field.getName)))).
-//				toSeq
-
-//	private val extractMethod: Method =
-//		classOf[Column[_]].getDeclaredMethod("extract", classOf[Regex.Match])
-
-	private def deMod(s: String): String = {
-		if (s.endsWith("$module")) s.substring(0, s.length - 7)
-		else s
+	val columns: Seq[(String, Column[_])] = {
+		getClass.getMethods
+				.filter(method => method.getParameterTypes.isEmpty && classOf[Column[_]].isAssignableFrom(method.getReturnType))
+				.map(method => (method.getName, method.invoke(this).asInstanceOf[Column[_]]))
+				.toSeq
 	}
 
 	// This method is a result of trade off between object state consistency and the client API cleanness.
@@ -60,10 +44,6 @@ abstract class Row {
 	// constructor parameters.
 	def populateColumns(regexMatch: Regex.Match): Row = {
 		val canPopulateAllColumns =
-//			columnAccessors.forall { case (columnName, accessorMethod) => {
-//				val column = accessorMethod.invoke(this)
-//				extractMethod.invoke(column, regexMatch).asInstanceOf[Boolean]
-//			}}
 			columns.forall {
 				case (columnName, column) => column.extract(regexMatch)
 			}
@@ -77,9 +57,6 @@ abstract class Row {
 
 
 	def hasColumn(columnName: String): Boolean = {
-//		columnAccessors.exists {
-//			case (name, method) => name == columnName
-//		}
 		columns.exists {
 			case (name, method) => name == columnName
 		}
@@ -96,17 +73,6 @@ abstract class Row {
 		}
 
 		columnOpt
-
-//		val nameMethodOpt = columnAccessors.find {
-//			case (name, method) => name == columnName
-//		}
-
-//		val column = nameMethodOpt match {
-//			case Some(nameWithAccessor) => Some(nameWithAccessor._2.invoke(this).asInstanceOf[Column[T]])
-//			case None => None
-//		}
-
-//		column
 	}
 }
 
