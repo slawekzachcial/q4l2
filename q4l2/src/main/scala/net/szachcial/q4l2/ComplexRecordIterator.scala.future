@@ -1,0 +1,131 @@
+package net.szachcial.q4l2
+
+import java.io.BufferedReader
+import util.matching.Regex
+import util.matching.Regex.MatchIterator
+
+class ComplexRecordIterator(private val input: BufferedReader, val startRecordPattern: Regex = "^.".r, val lineSeparator: String = "-||-") extends Iterator[String] {
+
+	private var nextRecord: String = null
+	private var inputContentRead = false
+
+	private var matchIterator: MatchIterator = null
+	private var seenNext = false
+//	private var recordHead: String = null
+//	private var recordTail: String = null
+
+	def next: String = {
+		println("##  calling next")
+		if (!hasNext) {
+			throw new NoSuchElementException
+		}
+
+		seenNext = false
+
+//		val result = if (recordTail != null) recordHead + lineSeparator + recordTail else recordHead
+//		recordHead = null
+//		recordTail = null
+//		result
+		val result = nextRecord;
+		nextRecord = null;
+		result;
+	}
+
+	def hasNext: Boolean = {
+		println("##  calling hasNext")
+		seenNext || findNext
+	}
+
+	private def findNext: Boolean = {
+
+		println("### calling findNext")
+		
+		while ((matchIterator == null || !matchIterator.hasNext) && !inputContentRead) {
+			if (!inputContentRead) {
+				val line = input.readLine
+				inputContentRead = (line == null)
+				if (line != null) {
+					matchIterator = startRecordPattern.findAllIn(line)
+				}
+				else {
+					matchIterator = null
+				}
+			}
+			
+			if (matchIterator == null) {
+				seenNext = false
+			}
+			else if (matchIterator.hasNext) {
+				println("=> matchIterator.hasNext")
+				if (nextRecord != null) {
+					nextRecord += lineSeparator + matchIterator.source.subSequence(0, matchIterator.start)
+				}
+				else {
+					seenNext = true
+					println("=> matchIterator.next")
+//					recordHead = matchIterator.next
+					nextRecord = matchIterator.next
+					val end = matchIterator.end
+					if (matchIterator.hasNext) {
+//					recordHead += matchIterator.source.subSequence(end, matchIterator.start)
+						nextRecord += matchIterator.source.subSequence(end, matchIterator.start)
+					}
+					else {
+//					recordHead += matchIterator.source.subSequence(end, matchIterator.source.length)
+						nextRecord += matchIterator.source.subSequence(end, matchIterator.source.length)
+					}
+//				recordTail = null
+				}
+			}
+//			else if (recordHead != null) {
+//				if (recordTail == null) {
+//					recordTail = matchIterator.source.toString
+//				}
+//				else {
+//					recordTail += matchIterator.source.toString
+//				}
+//			}
+			else if (nextRecord != null) {
+				nextRecord += lineSeparator + matchIterator.source.toString
+			}
+		}
+
+/*
+		val line = input.readLine
+		val matchIter = startRecordPattern.findAllIn(line)
+		if (matchIter.hasNext) {
+			val recordStart = matchIter.next
+			val end = matchIter.end
+			if (matchIter.hasNext) {
+				recordStart = recordStart + line.substring(end, matchIter.start)
+			}
+			else {
+				recordStart = recordStart + line.substring(end)
+			}
+			recordEnd = null
+		}
+		else if (recordStart != null) {
+			if (recordEnd == null) {
+				recordEnd = line
+			}
+			else {
+				recordEnd += line
+			}
+		}
+
+
+
+		if (!inputContentRead) {
+			if (nextRecord == null) {
+				nextRecord = input.readLine
+				if (nextRecord == null) {
+					inputContentRead = true
+				}
+			}
+		}
+*/
+
+//		!inputContentRead
+		seenNext
+	}
+}

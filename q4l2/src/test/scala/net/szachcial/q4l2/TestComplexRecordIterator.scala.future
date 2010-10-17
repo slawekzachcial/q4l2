@@ -1,0 +1,107 @@
+package net.szachcial.q4l2
+
+import org.specs._
+import java.io.{StringReader, BufferedReader}
+import scala.util.matching.Regex
+
+class TestComplexRecordIterator extends SpecificationWithJUnit {
+
+	def asIterator(s: String, startRecordPattern: Regex = "^.".r, lineSeparator: String = "-||-") =
+		new ComplexRecordIterator(new BufferedReader(new StringReader(s)), startRecordPattern, lineSeparator)
+
+
+//	"iterator without startRecordPattern" should {
+//		"handle properly empty input" in {
+//			val iter = asIterator("")
+//			iter.hasNext must beFalse
+//			iter.next must throwA[NoSuchElementException]
+//		}
+//
+//		"handle properly single-line input" in {
+//			val iter = asIterator("Single line")
+//			iter.hasNext must beTrue
+//			iter.hasNext must beTrue
+//			iter.next must_== "Single line"
+//			iter.hasNext must beFalse
+//			iter.next must throwA[NoSuchElementException]
+//		}
+//
+//		"handle properly multi-line input" in {
+//			val iter = asIterator("a\nb\nc")
+//			iter.toList must_== List("a", "b", "c")
+//		}
+//	}
+
+//	"iterator with startRecordPattern" should {
+//		"handle properly single line input with record start in the middle" in {
+//			val iter = asIterator("abacbc", "b".r)
+//			iter.toList must_== List("bac", "bc")
+//		}
+
+//		"handle properly multi-line input with separator in the middle" in {
+//			val iter = asIterator("aba\ncbc", "b".r)
+//			iter.toList must_== List("ba-||-c", "bc")
+//		}
+
+//		"handle properly multi-line input with lines without separator" in {
+//			val iter = asIterator("aba\nccc\ndbd", "b".r)
+//			iter.toList must_== List("ba-||-ccc-||-d", "bd")
+//		}
+//	}
+
+/*
+	"hasNext" should {
+		"return false for empty input" in {
+			asIterator("").hasNext must beFalse
+		}
+
+		"return false for 2nd call for single line input" in {
+			val iter = asIterator("Single line")
+			iter.hasNext must beTrue
+			iter.next
+			iter.hasNext must beFalse
+		}
+	}
+
+	"next" should {
+		"throw NoSuchElementException for empty input" in {
+			asIterator("").next must throwA[NoSuchElementException]
+		}
+
+		"return the content for single line input for the first call and throw exception for the 2nd" in {
+			val iter = asIterator("Single line")
+			iter.next must_==  "Single line"
+			iter.next must throwA[NoSuchElementException]
+		}
+	}
+
+	"iterator without startRecordPattern" should {
+		"handle properly 2-line input" in {
+			val iter = asIterator("a\nb");
+			iter.hasNext must beTrue
+			iter.next must_== "a"
+			iter.hasNext must beTrue
+			iter.next must_== "b"
+			iter.hasNext must beFalse
+			iter.next must throwA[NoSuchElementException]
+		}
+	}
+
+	"iterator with startRecordPattern" should {
+		"handle properly single line input with separator in the middle" in {
+			val iter = asIterator("abacbc", "b".r)
+			iter.toList must_== List("bac", "bc")
+		}
+
+		"handle properly multi-line input with separator in the middle" in {
+			val iter = asIterator("aba\ncbc", "b".r)
+			iter.toList must_== List("ba-||-c", "bc")
+		}
+
+		"handle properly multi-line input with separator at the start of the line" in {
+			val iter = asIterator("ab\na\ncabc", "^a".r)
+			iter.toList must_== List("ab", "a-||-cabc")
+		}
+	}
+*/
+}
