@@ -3,7 +3,7 @@ package net.szachcial.q4l2
 import java.util.Date
 import java.text.SimpleDateFormat
 import util.matching.Regex
-import java.io.BufferedReader
+import java.io. {StringReader, BufferedReader}
 
 trait Table[T <: Row] {
 
@@ -22,6 +22,8 @@ trait Table[T <: Row] {
 	protected def inputIterator(input: BufferedReader) = new InputIterator(input)
 
 	def iterator(input: BufferedReader): Iterator[T] = inputIterator(input).collect(new RowParser[T](rowRegex, rowClass))
+
+	def iterator(input: String): Iterator[T] = iterator(new BufferedReader(new StringReader(input)))
 }
 
 
@@ -55,13 +57,16 @@ abstract class Row {
 		this
 	}
 
-
+	// FIXME (slawek) - Should this method be here or in Table?
+/*
 	def hasColumn(columnName: String): Boolean = {
 		columns.exists {
 			case (name, method) => name == columnName
 		}
 	}
+*/
 
+/*
 	def getColumn[_](columnName: String): Option[Column[_]] = {
 		val nameColumnOpt = columns.find {
 			case (name, column) => name == columnName
@@ -73,6 +78,18 @@ abstract class Row {
 		}
 
 		columnOpt
+	}
+*/
+
+	def getColumn[T](column: Column[T]): Option[Column[T]] = {
+		val columnsOnly = columns.map {
+			case (name, columnInRow) => columnInRow
+		}
+		val columnOpt = columnsOnly.find(_.getClass == column.getClass)
+		columnOpt match {
+			case Some(col) => Some(col.asInstanceOf[Column[T]])
+			case None => None
+		}
 	}
 }
 

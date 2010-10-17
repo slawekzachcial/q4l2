@@ -74,9 +74,9 @@ class Value[T](value: T) extends Operand[T] {
 	def apply(candidate: List[RowCandidate]): Option[T] = Some(value)
 }
 
-class ColumnValue[T](columnName: String, tableAlias: Option[String]) extends Operand[T] {
-
-	def apply(candidate: List[RowCandidate]): Option[T] = {
+//class ColumnValue[T](columnName: String, tableAlias: Option[String]) extends Operand[T] {
+//
+//	def apply(candidate: List[RowCandidate]): Option[T] = {
 //		val rowCandidateOpt = tableAlias match {
 //			case Some(alias) => candidate.find(trc => trc.tableAlias == alias && trc.row.hasColumn(columnName))
 //			case None => candidate.find(_.row.hasColumn(columnName))
@@ -93,15 +93,22 @@ class ColumnValue[T](columnName: String, tableAlias: Option[String]) extends Ope
 //		}
 //
 //		value
-		throw new UnsupportedOperationException("This needs to be re-implemented")
-	}
+//		throw new UnsupportedOperationException("This needs to be re-implemented")
+//	}
+//
+//}
 
-}
+class ColumnValue[T](column: Column[T]) extends Operand[T] {
 
-class ColumnValue2[T](column: Column[T]) extends Operand[T] {
 	def apply(candidate: List[RowCandidate]): Option[T] = {
-		throw new UnsupportedOperationException("Figure out how to use singleton columns to designate table columns - like in LIFT")
+		val rows = candidate.map(_.row)
+		val rowOpt = rows.find(row => row.getColumn(column).isDefined)
+		rowOpt match {
+			case Some(row) => row.getColumn(column).get.value
+			case None => throw new QuerySyntaxException("Column not found: " + column)
+		}
 	}
+
 }
 
 //class Sum[T <: Number](operands: Operand[T]*) extends Operand[Number] {
