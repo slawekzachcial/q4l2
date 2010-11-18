@@ -24,18 +24,44 @@ class ColumnValueTest extends SpecificationWithJUnit {
 
 	"ColumnValue" should {
 		"throw exception when column not found" in {
-			val value = new ColumnValue(new StringColumn(-1, Nullable.NOT_NULL) {})
-			val rowCandidate = List(new RowCandidate(None, row("abc\t123")))
+			val artificialColumn = new StringColumn(-1, Nullable.NOT_NULL) {}
+			val value = new ColumnValue(artificialColumn)
+			val rowCandidate = List(row("abc\t123"))
 
 			value(rowCandidate) must throwA[QuerySyntaxException]
 		}
 
 		"retrieve value when column found" in {
 			val value = new ColumnValue(QueryTestEntity.intColumn)
-			val rowCandidate = List(new RowCandidate(None, row("abc\t123")))
+			val rowCandidate = List(row("abc\t123"))
 
 			value(rowCandidate) must_== Some(123)
 		}
 	}
 
+}
+
+class ExpressionTest extends SpecificationWithJUnit {
+
+	"Expression: intColumn between 100 and 200 and stringColumn = 'abc'" should {
+		val testExpression = And(
+			Between(ColumnValue(QueryTestEntity.intColumn), Value(100), Value(200)),
+			Eq(ColumnValue(QueryTestEntity.stringColumn), Value("abc"))
+		)
+
+		"return true for ('abc', 150)" in {
+			val row = QueryTestEntity.iterator("abc\t150").next
+			testExpression(List(row)) must beTrue
+		}
+
+		"return false for ('abc', 99)" in {
+			val row = QueryTestEntity.iterator("abc\t99").next
+			testExpression(List(row)) must beFalse
+		}
+
+		"return false for ('def', 120)" in {
+			val row = QueryTestEntity.iterator("def\t120").next
+			testExpression(List(row)) must beFalse
+		}
+	}
 }

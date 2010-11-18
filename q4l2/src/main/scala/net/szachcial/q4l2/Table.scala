@@ -87,6 +87,7 @@ abstract class Row {
 		}
 		val columnOpt = columnsOnly.find(_.getClass == column.getClass)
 		columnOpt match {
+			// As I know from the line above that the class is the same, I can safely cast it
 			case Some(col) => Some(col.asInstanceOf[Column[T]])
 			case None => None
 		}

@@ -1,39 +1,34 @@
 package net.szachcial.q4l2
 
-class Query(tables: List[TableExpression], rowFilter: Expression)
+class Query(tables: List[Table[_]], rowFilter: Expression)
 
 
 class QuerySyntaxException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
-class TableExpression(table: Table[_], alias: Option[String])
 
+trait Expression extends (List[Row] => Boolean)
 
-class RowCandidate(val tableAlias: Option[String], val row: Row)
-
-
-trait Expression extends (List[RowCandidate] => Boolean)
-
-class And(expr: Expression*) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean = expr.forall(_.apply(candidate))
+case class And(expr: Expression*) extends Expression {
+	def apply(candidate: List[Row]): Boolean = expr.forall(_.apply(candidate))
 }
 
-class Or(expr: Expression*) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean = expr.exists(_.apply(candidate))
+case class Or(expr: Expression*) extends Expression {
+	def apply(candidate: List[Row]): Boolean = expr.exists(_.apply(candidate))
 }
 
-class Not(expr: Expression) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean = !expr.apply(candidate)
+case class Not(expr: Expression) extends Expression {
+	def apply(candidate: List[Row]): Boolean = !expr.apply(candidate)
 }
 
 
-trait Operand[T] extends (List[RowCandidate] => Option[T])
+trait Operand[T] extends (List[Row] => Option[T])
 
-class Eq(op1: Operand[_], op2: Operand[_]) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean = (op1(candidate) == op2(candidate))
+case class Eq(op1: Operand[_], op2: Operand[_]) extends Expression {
+	def apply(candidate: List[Row]): Boolean = (op1(candidate) == op2(candidate))
 }
 
-class Lt[T <: Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean = {
+case class Lt[T <% Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
+	def apply(candidate: List[Row]): Boolean = {
 		val xOpt = op1(candidate)
 		val yOpt = op2(candidate)
 
@@ -46,8 +41,8 @@ class Lt[T <: Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
 	}
 }
 
-class Gt[T <: Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean = {
+case class Gt[T <% Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
+	def apply(candidate: List[Row]): Boolean = {
 		val xOpt = op1(candidate)
 		val yOpt = op2(candidate)
 
@@ -60,30 +55,30 @@ class Gt[T <: Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
 	}
 }
 
-class Between[T <: Ordered[T]](op: Operand[T], opLeft: Operand[T], opRight: Operand[T]) extends Expression {
-	def apply(candidate: List[RowCandidate]): Boolean =
-		(new Lt(opLeft, op)(candidate) && new Lt(op, opRight)(candidate))
+case class Between[T <% Ordered[T]](op: Operand[T], opLeft: Operand[T], opRight: Operand[T]) extends Expression {
+	def apply(candidate: List[Row]): Boolean =
+		(new Lt(opLeft, op).apply(candidate) && new Lt(op, opRight).apply(candidate))
 }
 
-class Concatenation(operands: Operand[_]*) extends Operand[String] {
-	def apply(candidate: List[RowCandidate]): Option[String] =
+case class Concatenation(operands: Operand[_]*) extends Operand[String] {
+	def apply(candidate: List[Row]): Option[String] =
 		Some(operands.foldLeft("")((result, oper) => result + oper(candidate).toString))
 }
 
-class Value[T](value: T) extends Operand[T] {
-	def apply(candidate: List[RowCandidate]): Option[T] = Some(value)
+case class Value[T](value: T) extends Operand[T] {
+	def apply(candidate: List[Row]): Option[T] = Some(value)
 }
 
 //class ColumnValue[T](columnName: String, tableAlias: Option[String]) extends Operand[T] {
 //
-//	def apply(candidate: List[RowCandidate]): Option[T] = {
-//		val rowCandidateOpt = tableAlias match {
+//	def apply(candidate: List[Row]): Option[T] = {
+//		val RowOpt = tableAlias match {
 //			case Some(alias) => candidate.find(trc => trc.tableAlias == alias && trc.row.hasColumn(columnName))
 //			case None => candidate.find(_.row.hasColumn(columnName))
 //		}
 //
-//		val columnOpt = rowCandidateOpt match {
-//			case Some(rowCandidate) => rowCandidate.row.getColumn(columnName)
+//		val columnOpt = RowOpt match {
+//			case Some(Row) => Row.row.getColumn(columnName)
 //			case None => None
 //		}
 //
@@ -98,11 +93,10 @@ class Value[T](value: T) extends Operand[T] {
 //
 //}
 
-class ColumnValue[T](column: Column[T]) extends Operand[T] {
+case class ColumnValue[T](column: Column[T]) extends Operand[T] {
 
-	def apply(candidate: List[RowCandidate]): Option[T] = {
-		val rows = candidate.map(_.row)
-		val rowOpt = rows.find(row => row.getColumn(column).isDefined)
+	def apply(candidate: List[Row]): Option[T] = {
+		val rowOpt = candidate.find(row => row.getColumn(column).isDefined)
 		rowOpt match {
 			case Some(row) => row.getColumn(column).get.value
 			case None => throw new QuerySyntaxException("Column not found: " + column)
@@ -112,7 +106,7 @@ class ColumnValue[T](column: Column[T]) extends Operand[T] {
 }
 
 //class Sum[T <: Number](operands: Operand[T]*) extends Operand[Number] {
-//	def apply(candidate: List[RowCandidate]) = operands.foldLeft(0)((result, oper) => result + oper(candidate))
+//	def apply(candidate: List[Row]) = operands.foldLeft(0)((result, oper) => result + oper(candidate))
 //}
 
 
