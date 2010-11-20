@@ -1,99 +1,132 @@
 package net.szachcial.q4l2
 
-class Query(tables: List[Table[_]], rowFilter: Expression)
+class Query(tables: List[Table[_]], rowFilter: Expression[Boolean])
 
 
 class QuerySyntaxException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
 
-trait Expression extends (List[Row] => Boolean)
+trait Expression[+T] extends (List[Row] => Option[T])
 
-case class And(expr: Expression*) extends Expression {
-	def apply(candidate: List[Row]): Boolean = expr.forall(_.apply(candidate))
+case object Null extends Expression[Nothing] {
+	def apply(candidate: List[Row]) = None
 }
 
-case class Or(expr: Expression*) extends Expression {
-	def apply(candidate: List[Row]): Boolean = expr.exists(_.apply(candidate))
-}
-
-case class Not(expr: Expression) extends Expression {
-	def apply(candidate: List[Row]): Boolean = !expr.apply(candidate)
-}
-
-
-trait Operand[T] extends (List[Row] => Option[T])
-
-case class Eq(op1: Operand[_], op2: Operand[_]) extends Expression {
-	def apply(candidate: List[Row]): Boolean = (op1(candidate) == op2(candidate))
-}
-
-case class Lt[T <% Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
-	def apply(candidate: List[Row]): Boolean = {
-		val xOpt = op1(candidate)
-		val yOpt = op2(candidate)
-
-		if (xOpt != None && yOpt != None) {
-			xOpt.get < yOpt.get
-		}
-		else {
-			false
-		}
-	}
-}
-
-case class Gt[T <% Ordered[T]](op1: Operand[T], op2: Operand[T]) extends Expression {
-	def apply(candidate: List[Row]): Boolean = {
-		val xOpt = op1(candidate)
-		val yOpt = op2(candidate)
-
-		if (xOpt != None && yOpt != None) {
-			xOpt.get > yOpt.get
-		}
-		else {
-			false
-		}
-	}
-}
-
-case class Between[T <% Ordered[T]](op: Operand[T], opLeft: Operand[T], opRight: Operand[T]) extends Expression {
-	def apply(candidate: List[Row]): Boolean =
-		(new Lt(opLeft, op).apply(candidate) && new Lt(op, opRight).apply(candidate))
-}
-
-case class Concatenation(operands: Operand[_]*) extends Operand[String] {
-	def apply(candidate: List[Row]): Option[String] =
-		Some(operands.foldLeft("")((result, oper) => result + oper(candidate).toString))
-}
-
-case class Value[T](value: T) extends Operand[T] {
+case class Value[T](value: T) extends Expression[T] {
 	def apply(candidate: List[Row]): Option[T] = Some(value)
 }
 
-//class ColumnValue[T](columnName: String, tableAlias: Option[String]) extends Operand[T] {
-//
-//	def apply(candidate: List[Row]): Option[T] = {
-//		val RowOpt = tableAlias match {
-//			case Some(alias) => candidate.find(trc => trc.tableAlias == alias && trc.row.hasColumn(columnName))
-//			case None => candidate.find(_.row.hasColumn(columnName))
-//		}
-//
-//		val columnOpt = RowOpt match {
-//			case Some(Row) => Row.row.getColumn(columnName)
-//			case None => None
-//		}
-//
-//		val value = columnOpt match {
-//			case Some(column) => column.value
-//			case None => throw new QuerySyntaxException("Column not found: " + columnName)
-//		}
-//
-//		value
-//		throw new UnsupportedOperationException("This needs to be re-implemented")
-//	}
-//
-//}
+case object True extends Expression[Boolean] {
+	def apply(candidate: List[Row]) = Some(true)
+}
 
-case class ColumnValue[T](column: Column[T]) extends Operand[T] {
+case object False extends Expression[Boolean] {
+	def apply(candidate: List[Row]) = Some(false)
+}
+
+case class Not(expression: Expression[Boolean]) extends Expression[Boolean] {
+	def apply(candidate: List[Row]) = {
+		expression.apply(candidate) match {
+			case Some(true) => Some(false)
+			case Some(false) => Some(true)
+			case None => None
+		}
+	}
+}
+
+case class And(expressions: Expression[Boolean]*) extends Expression[Boolean] {
+
+	def apply(candidate: List[Row]) = evaluate(expressions.toList, candidate, false)
+
+	private def evaluate(expressionList: List[Expression[Boolean]], candidate: List[Row], foundNull: Boolean): Option[Boolean] = {
+		expressionList match {
+			case x :: xs =>
+				x.apply(candidate) match {
+					// if found false - the AND is false and no need to continue
+					case Some(false) => Some(false)
+					// if found true - let's check the rest
+					case Some(true) => evaluate(xs, candidate, foundNull)
+					// if found None/Null - let's capture this in foundNull and let's continue
+					case None => evaluate(xs, candidate, true)
+				}
+			case Nil =>
+				// end of the list analysis - if we got here there was no false in the list
+				// if we had Null it is null otherwise it's true
+				if (foundNull) None
+				else Some(true)
+		}
+	}
+}
+
+case class Or(expressions: Expression[Boolean]*) extends Expression[Boolean] {
+
+	def apply(candidate: List[Row]) = evaluate(expressions.toList, candidate, false)
+
+	private def evaluate(expressionList: List[Expression[Boolean]], candidate: List[Row], foundNull: Boolean): Option[Boolean] = {
+		expressionList match {
+			case x :: xs =>
+				x.apply(candidate) match {
+					// if found true - the OR is true and no need to continue
+					case Some(true) => Some(true)
+					// if found false - let's check the rest
+					case Some(false) => evaluate(xs, candidate, foundNull)
+					// if found None/Null - let's capture this in foundNull and continue
+					case None => evaluate(xs, candidate, true)
+				}
+			case Nil =>
+				// end of the list analysis - if we got here there was no true in the list
+				// if we had Null it's null otherwise it's false
+				if (foundNull) None
+				else Some(false)
+		}
+	}
+}
+
+abstract class Comparison[T](op1: Expression[T], op2: Expression[T]) extends Expression[Boolean] {
+
+	def apply(candidate: List[Row]) = {
+		val result1 = op1.apply(candidate)
+		val result2 = op2.apply(candidate)
+		result1 match {
+			// comparing with Null is always Null
+			case None => None
+			case Some(value1) =>
+				result2 match {
+					case None => None
+					case Some(value2) => Some(evaluate(value1, value2))
+				}
+		}
+	}
+
+	def evaluate(value1: T, value2: T): Boolean
+}
+
+case class Eq[T](op1: Expression[T], op2: Expression[T]) extends Comparison[T](op1, op2) {
+	def evaluate(value1: T, value2: T) = (value1 == value2)
+}
+
+case class Lt[T <% Ordered[T]](op1: Expression[T], op2: Expression[T]) extends Comparison[T](op1, op2) {
+	def evaluate(value1: T, value2: T) = (value1 < value2)
+}
+
+case class Le[T <% Ordered[T]](op1: Expression[T], op2: Expression[T]) extends Comparison[T](op1, op2) {
+	def evaluate(value1: T, value2: T) = (value1 <= value2)
+}
+
+case class Gt[T <% Ordered[T]](op1: Expression[T], op2: Expression[T]) extends Comparison[T](op1, op2) {
+	def evaluate(value1: T, value2: T) = (value1 > value2)
+}
+
+case class Ge[T <% Ordered[T]](op1: Expression[T], op2: Expression[T]) extends Comparison[T](op1, op2) {
+	def evaluate(value1: T, value2: T) = (value1 >= value2)
+}
+
+case class Between[T <% Ordered[T]](op: Expression[T], opLeft: Expression[T], opRight: Expression[T]) extends Comparison[Boolean](Le(opLeft, op), Le(op, opRight))
+{
+	def evaluate(value1: Boolean, value2: Boolean) = (value1 && value2)
+}
+
+case class ColumnValue[T](column: Column[T]) extends Expression[T] {
 
 	def apply(candidate: List[Row]): Option[T] = {
 		val rowOpt = candidate.find(row => row.getColumn(column).isDefined)
@@ -104,6 +137,11 @@ case class ColumnValue[T](column: Column[T]) extends Operand[T] {
 	}
 
 }
+
+//case class Concatenation(operands: Expression[_]*) extends Expression[String] {
+//	def apply(candidate: List[Row]): Option[String] =
+//		Some(operands.foldLeft("")((result, oper) => result + oper(candidate).toString))
+//}
 
 //class Sum[T <: Number](operands: Operand[T]*) extends Operand[Number] {
 //	def apply(candidate: List[Row]) = operands.foldLeft(0)((result, oper) => result + oper(candidate))
