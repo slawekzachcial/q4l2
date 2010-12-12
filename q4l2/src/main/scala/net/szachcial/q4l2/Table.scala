@@ -58,33 +58,15 @@ abstract class Row {
 	}
 
 	// FIXME (slawek) - Should this method be here or in Table?
-/*
-	def hasColumn(columnName: String): Boolean = {
-		columns.exists {
-			case (name, method) => name == columnName
-		}
-	}
-*/
-
-/*
-	def getColumn[_](columnName: String): Option[Column[_]] = {
-		val nameColumnOpt = columns.find {
-			case (name, column) => name == columnName
-		}
-
-		val columnOpt = nameColumnOpt match {
-			case Some(nameWithColumn) => Some(nameWithColumn._2)
-			case None => None
-		}
-
-		columnOpt
-	}
-*/
 
 	def getColumn[T](column: Column[T]): Option[Column[T]] = {
 		val columnsOnly = columns.map {
 			case (name, columnInRow) => columnInRow
 		}
+
+		// In order for the next line to work I have to declare row columns as "object columnName extends ColumnType(...)".
+		// Doing "val columnName = ColumnType(...)" I wouldn't be able to differentiate, based on the incoming "column"
+		// parameter the columns of the same type.
 		val columnOpt = columnsOnly.find(_.getClass == column.getClass)
 		columnOpt match {
 			// As I know from the line above that the class is the same, I can safely cast it

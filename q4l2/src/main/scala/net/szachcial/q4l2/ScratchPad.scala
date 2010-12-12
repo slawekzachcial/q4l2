@@ -3,8 +3,65 @@ package net.szachcial.q4l2
 import java.util.Date
 import util.matching.Regex
 import java.text.SimpleDateFormat
+import collection.mutable.ListBuffer
 
 class ScratchPad
+
+class Qry[T](projection: T) extends Iterator[T] {
+	def next = projection
+	def hasNext = true
+}
+
+class SP_ResultColumn[T](expression: Expression[T]) {
+	private var columnValue: Option[T] = throw new IllegalStateException("Value not initialized yet")
+
+	private[q4l2] def setExpressionValue(candidate: List[Row]): Unit = {
+		columnValue = expression.apply(candidate)
+	}
+
+	def value = columnValue
+}
+
+// !!! I want to have client API see only parameterless constructor and companion object to be able to create
+// SP_Result with specified named columns
+
+trait SP_Result {
+	val columns: Seq[(String, SP_ResultColumn[_])] = {
+			getClass.getMethods
+					.filter(method => method.getParameterTypes.isEmpty && classOf[SP_ResultColumn[_]].isAssignableFrom(method.getReturnType))
+					.map(method => (method.getName, method.invoke(this).asInstanceOf[SP_ResultColumn[_]]))
+					.toSeq
+	}
+
+	def as[T](expr: Expression[T]) = new SP_ResultColumn(expr)
+
+}
+
+private class TypeUnsafeSP_Result(unsafeColumns: List[(String, Expression[_])]) extends SP_Result {
+	override val columns =
+		unsafeColumns.map{
+			case (name, expression) => (name, as(expression))
+		}.toSeq
+}
+
+object SP_Result extends SP_Result {
+
+	def apply(columns: (String, Expression[_])*): SP_Result = new TypeUnsafeSP_Result(columns.toList)
+
+}
+
+object Qry {
+	def sample {
+		val q = new Qry(new SP_Result {
+		    val c1 = as(And(Value(true), Null))
+			val c2 = as(Value(123))
+		})
+
+		val rs = q.next
+		rs.c1
+		rs.c2
+	}
+}
 
 /*
 object Log4jLevel extends Enumeration {

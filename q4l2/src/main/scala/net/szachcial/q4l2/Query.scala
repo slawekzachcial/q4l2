@@ -1,6 +1,6 @@
 package net.szachcial.q4l2
 
-class Query(tables: List[Table[_]], rowFilter: Expression[Boolean])
+class Query(tables: List[Table[_]], rowFilter: Expression[Boolean], result: Result)
 
 
 class QuerySyntaxException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
@@ -138,16 +138,38 @@ case class ColumnValue[T](column: Column[T]) extends Expression[T] {
 
 }
 
-//case class Concatenation(operands: Expression[_]*) extends Expression[String] {
-//	def apply(candidate: List[Row]): Option[String] =
-//		Some(operands.foldLeft("")((result, oper) => result + oper(candidate).toString))
-//}
 
-//class Sum[T <: Number](operands: Operand[T]*) extends Operand[Number] {
-//	def apply(candidate: List[Row]) = operands.foldLeft(0)((result, oper) => result + oper(candidate))
-//}
+trait Result {
+	val columns: Seq[(String, ResultColumn[_])] = {
+			getClass.getMethods
+					.filter(method => method.getParameterTypes.isEmpty && classOf[ResultColumn[_]].isAssignableFrom(method.getReturnType))
+					.map(method => (method.getName, method.invoke(this).asInstanceOf[ResultColumn[_]]))
+					.toSeq
+	}
 
+	def as[T](expr: Expression[T]) = new ResultColumn(expr)
 
-//class Concatenation extends (Array[Any] => String) {
-//	def apply(value: Array[Any]) = value.foldLeft("")((s,v) => s + v.toString)
-//}
+}
+
+class ResultColumn[T](expression: Expression[T]) {
+	private var columnValue: Option[T] = throw new IllegalStateException("Value not initialized yet")
+
+	private[q4l2] def setExpressionValue(candidate: List[Row]): Unit = {
+		columnValue = expression.apply(candidate)
+	}
+
+	def value = columnValue
+}
+
+class NamedColumnsResult(namedColumns: List[(String, Expression[_])]) extends Result {
+	override val columns =
+		namedColumns.map{
+			case (name, expression) => (name, as(expression))
+		}.toSeq
+}
+
+object Result extends Result {
+
+	def apply(columns: (String, Expression[_])*): Result = new NamedColumnsResult(columns.toList)
+
+}
