@@ -35,7 +35,10 @@ class FileIterator(pathRegex: Regex) extends Iterator[File] {
 					case x :: xs =>
 						val children = parentFile.listFiles(new RegexFilenameFilter(x.r)).sortWith(_.getName < _.getName)
 						children.foldLeft(result)((res, child) =>
-							res ++ findFiles(parentPath + child.getName + "/", xs, result)).toList
+							res ++ (
+								if (child.isFile) List(child)
+								else findFiles(parentPath + child.getName + "/", xs, result)).toList
+							)
 					case Nil =>
 						result ::: List(parentFile)
 				}
